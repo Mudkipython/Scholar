@@ -22,7 +22,14 @@ from journal_metric_tool.pipeline import (
     results_to_dataframe,
     search_author_candidates,
 )
-from journal_metric_tool.results import build_missing_journal_template, compute_result_summary, split_result_columns
+from journal_metric_tool.results import (
+    SORT_OPTIONS,
+    build_missing_journal_template,
+    build_result_filter_options,
+    compute_result_summary,
+    filter_and_sort_results,
+    split_result_columns,
+)
 from journal_metric_tool.scholar import parse_scholar_author_id
 
 
@@ -308,9 +315,9 @@ def render_results(t, df: pd.DataFrame, base_results: pd.DataFrame, local_metric
         render_local_match_stats(t, base_results, local_metrics)
     else:
         st.warning(t("no_local_metric_source_in_results"), icon=":material/database_off:")
-    render_result_table(t, df)
+    filtered_df = render_result_table(t, df)
     render_missing_journal_template(t, df)
-    render_exports(t, df)
+    render_exports(t, filtered_df)
 
 
 def render_summary_metrics(t, df: pd.DataFrame) -> None:
@@ -341,8 +348,9 @@ def render_local_match_stats(t, base_results: pd.DataFrame, local_metrics: pd.Da
         st.warning(t("local_metric_zero_match"), icon=":material/warning:")
 
 
-def render_result_table(t, df: pd.DataFrame) -> None:
-    split = split_result_columns(df)
+def render_result_table(t, df: pd.DataFrame) -> pd.DataFrame:
+    filtered_df = render_result_browser(t, df)
+    split = split_result_columns(filtered_df)
     st.dataframe(
         split["primary"],
         hide_index=True,
@@ -362,9 +370,153 @@ def render_result_table(t, df: pd.DataFrame) -> None:
     )
     with st.expander(t("technical_columns"), icon=":material/tune:"):
         st.dataframe(split["technical"], hide_index=True, width="stretch")
-    if compute_result_summary(df)["low_confidence_count"]:
+    if compute_result_summary(filtered_df)["low_confidence_count"]:
         st.warning(t("low_confidence_warning"), icon=":material/warning:")
     st.caption(t("result_source_caption"))
+    return filtered_df
+
+
+def render_result_browser(t, df: pd.DataFrame) -> pd.DataFrame:
+    filter_options = build_result_filter_options(df)
+    sort_labels = {
+        "year": t("sort_year"),
+        "citations": t("sort_citations"),
+        "openalex_metric": t("sort_openalex_metric"),
+        "match_confidence": t("sort_match_confidence"),
+        "journal": t("sort_journal"),
+        "title": t("sort_title"),
+        "jcr_quartile": t("sort_jcr_quartile"),
+        "cas_zone": t("sort_cas_zone"),
+    }
+
+    with st.container(border=True):
+        st.markdown(f"**:material/filter_list: {t('browse_results_title')}**")
+        top_left, top_right = st.columns([2, 1], vertical_alignment="bottom")
+        with top_left:
+            query = st.text_input(
+                t("search_within_results"),
+                key="result_query",
+                placeholder=t("search_within_placeholder"),
+            )
+        with top_right:
+            if st.button(t("clear_filters"), icon=":material/refresh:", width="stretch"):
+                clear_result_filters()
+                st.rerun()
+
+        sort_col, direction_col, year_col = st.columns([1.2, 1, 1], vertical_alignment="bottom")
+        with sort_col:
+            sort_by = st.selectbox(
+                t("sort_by"),
+                options=list(SORT_OPTIONS.keys()),
+                index=0,
+                key="result_sort_by",
+                format_func=lambda value: sort_labels.get(value, value),
+            )
+        with direction_col:
+            direction = st.segmented_control(
+                t("sort_direction"),
+                [t("sort_desc"), t("sort_asc")],
+                default=t("sort_desc"),
+                key="result_sort_direction",
+            )
+        with year_col:
+            year_min, year_max = _year_bounds(df)
+            year_value = _result_year_range_value(year_min, year_max)
+            selected_years = st.slider(
+                t("year_range"),
+                min_value=year_min,
+                max_value=year_max,
+                value=year_value,
+                key="result_year_range",
+                disabled=year_min == year_max,
+            )
+
+        with st.container(horizontal=True):
+            require_journal = st.toggle(t("filter_require_journal"), key="result_require_journal")
+            require_local_metric = st.toggle(
+                t("filter_require_local_metric"),
+                key="result_require_local_metric",
+            )
+            low_confidence_only = st.toggle(t("filter_low_confidence"), key="result_low_confidence")
+
+        jcr_col, cas_col = st.columns(2)
+        with jcr_col:
+            selected_jcr = st.multiselect(
+                t("filter_jcr_quartile"),
+                options=filter_options["jcr_quartiles"],
+                default=st.session_state.get("result_jcr_quartiles", []),
+                key="result_jcr_quartiles",
+                disabled=not filter_options["jcr_quartiles"],
+            )
+        with cas_col:
+            selected_cas = st.multiselect(
+                t("filter_cas_zone"),
+                options=filter_options["cas_zones"],
+                default=st.session_state.get("result_cas_zones", []),
+                key="result_cas_zones",
+                disabled=not filter_options["cas_zones"],
+            )
+
+    filtered_df = filter_and_sort_results(
+        df,
+        query=query,
+        year_min=selected_years[0],
+        year_max=selected_years[1],
+        require_journal=require_journal,
+        require_local_metric=require_local_metric,
+        low_confidence_only=low_confidence_only,
+        jcr_quartiles=selected_jcr,
+        cas_zones=selected_cas,
+        sort_by=sort_by,
+        ascending=direction == t("sort_asc"),
+    )
+    st.caption(t("showing_records", shown=len(filtered_df), total=len(df)))
+    return filtered_df
+
+
+def clear_result_filters() -> None:
+    for key in [
+        "result_query",
+        "result_sort_by",
+        "result_sort_direction",
+        "result_year_range",
+        "result_require_journal",
+        "result_require_local_metric",
+        "result_low_confidence",
+        "result_jcr_quartiles",
+        "result_cas_zones",
+    ]:
+        st.session_state.pop(key, None)
+
+
+def _year_bounds(df: pd.DataFrame) -> tuple[int, int]:
+    if "year" not in df.columns:
+        current_year = pd.Timestamp.today().year
+        return current_year, current_year
+    years = pd.to_numeric(df["year"], errors="coerce").dropna()
+    if years.empty:
+        current_year = pd.Timestamp.today().year
+        return current_year, current_year
+    return int(years.min()), int(years.max())
+
+
+def _result_year_range_value(year_min: int, year_max: int) -> tuple[int, int]:
+    selected = st.session_state.get("result_year_range")
+    if not isinstance(selected, (list, tuple)) or len(selected) != 2:
+        st.session_state.pop("result_year_range", None)
+        return year_min, year_max
+
+    try:
+        selected_min = max(year_min, min(int(selected[0]), year_max))
+        selected_max = max(year_min, min(int(selected[1]), year_max))
+    except (TypeError, ValueError):
+        st.session_state.pop("result_year_range", None)
+        return year_min, year_max
+    if selected_min > selected_max:
+        selected_min, selected_max = year_min, year_max
+    if (selected_min, selected_max) != tuple(selected):
+        st.session_state.pop("result_year_range", None)
+    return selected_min, selected_max
 
 
 def render_missing_journal_template(t, df: pd.DataFrame) -> None:

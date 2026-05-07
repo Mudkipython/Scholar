@@ -18,7 +18,13 @@ from journal_metric_tool.local_metrics import (
 )
 from journal_metric_tool.openalex import work_to_match
 from journal_metric_tool.pipeline import RESULT_COLUMNS, results_to_dataframe
-from journal_metric_tool.results import build_missing_journal_template, compute_result_summary, split_result_columns
+from journal_metric_tool.results import (
+    build_missing_journal_template,
+    build_result_filter_options,
+    compute_result_summary,
+    filter_and_sort_results,
+    split_result_columns,
+)
 from journal_metric_tool.scholar import parse_scholar_author_id, parse_scholar_profile_html
 from scripts.build_journal_rankings import build_reference_table
 
@@ -328,6 +334,103 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(len(template), 1)
         self.assertEqual(template.loc[0, "journal"], "Needs Ranking Journal")
         self.assertEqual(template.loc[0, "issn_l"], "1111-2222")
+
+    def test_filter_and_sort_results_for_research_browser(self):
+        df = results_to_dataframe(
+            [
+                {
+                    "title": "Remote sensing change detection",
+                    "year": 2024,
+                    "journal": "IEEE Transactions on Geoscience and Remote Sensing",
+                    "doi": "10.1/example",
+                    "citations": 12,
+                    "metric_value": 9.1,
+                    "metric_source": "OpenAlex 2-year mean citedness (not official JIF)",
+                    "h_index": 100,
+                    "i10_index": 200,
+                    "jcr_quartile": "Q1",
+                    "cas_zone": "1区",
+                    "cas_subject": "地球科学",
+                    "jcr_category": "Remote sensing",
+                    "local_metric_source": "Lab reference table",
+                    "match_confidence": 0.96,
+                    "source_type": "journal",
+                    "issn_l": "0196-2892",
+                    "openalex_id": "https://openalex.org/W1",
+                    "notes": "",
+                },
+                {
+                    "title": "Repository record",
+                    "year": 2022,
+                    "journal": "",
+                    "doi": "",
+                    "citations": 2,
+                    "metric_value": None,
+                    "metric_source": "OpenAlex",
+                    "h_index": None,
+                    "i10_index": None,
+                    "jcr_quartile": "",
+                    "cas_zone": "",
+                    "cas_subject": "",
+                    "jcr_category": "",
+                    "local_metric_source": "",
+                    "match_confidence": 0.41,
+                    "source_type": "",
+                    "issn_l": "",
+                    "openalex_id": "https://openalex.org/W2",
+                    "notes": "No source.",
+                },
+                {
+                    "title": "Urban heat paper",
+                    "year": 2023,
+                    "journal": "Urban Climate",
+                    "doi": "10.2/example",
+                    "citations": 25,
+                    "metric_value": 4.2,
+                    "metric_source": "OpenAlex 2-year mean citedness (not official JIF)",
+                    "h_index": 80,
+                    "i10_index": 120,
+                    "jcr_quartile": "Q2",
+                    "cas_zone": "3区",
+                    "cas_subject": "环境科学",
+                    "jcr_category": "Environmental studies",
+                    "local_metric_source": "Lab reference table",
+                    "match_confidence": 0.88,
+                    "source_type": "journal",
+                    "issn_l": "2212-0955",
+                    "openalex_id": "https://openalex.org/W3",
+                    "notes": "",
+                },
+            ]
+        )
+
+        filtered = filter_and_sort_results(
+            df,
+            query="remote",
+            require_local_metric=True,
+            jcr_quartiles=["Q1"],
+            sort_by="citations",
+            ascending=False,
+        )
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered.loc[0, "journal"], "IEEE Transactions on Geoscience and Remote Sensing")
+
+        filtered = filter_and_sort_results(df, require_journal=True, sort_by="citations", ascending=True)
+        self.assertEqual(filtered["title"].tolist(), ["Remote sensing change detection", "Urban heat paper"])
+
+        filtered = filter_and_sort_results(df, low_confidence_only=True)
+        self.assertEqual(filtered["title"].tolist(), ["Repository record"])
+
+    def test_build_result_filter_options(self):
+        df = pd.DataFrame(
+            {
+                "jcr_quartile": ["Q2", "Q1", "", None, "Q1"],
+                "cas_zone": ["3区", "1区", "", None, "1区"],
+            }
+        )
+        options = build_result_filter_options(df)
+        self.assertEqual(options["jcr_quartiles"], ["Q1", "Q2"])
+        self.assertEqual(options["cas_zones"], ["1区", "3区"])
 
     def test_error_classification(self):
         self.assertEqual(classify_error(requests.Timeout("slow")), "timeout")
