@@ -1,0 +1,4 @@
+# Put one CSV URL per line in data/journal_rankings_url.txt.
+# The app will load the first reachable CSV URL automatically when no user upload is provided.
+# Example:
+# https://example.com/journal_rankings.csv

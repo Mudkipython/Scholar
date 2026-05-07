@@ -8,7 +8,12 @@ import pandas as pd
 from journal_metric_tool.errors import classify_error
 from journal_metric_tool.export import dataframe_to_csv_bytes, dataframe_to_xlsx_bytes
 from journal_metric_tool.i18n import TRANSLATIONS, translate
-from journal_metric_tool.local_metrics import compute_metric_match_stats, discover_private_metric_path, enrich_with_local_metrics
+from journal_metric_tool.local_metrics import (
+    compute_metric_match_stats,
+    discover_metric_urls,
+    discover_private_metric_path,
+    enrich_with_local_metrics,
+)
 from journal_metric_tool.openalex import work_to_match
 from journal_metric_tool.pipeline import RESULT_COLUMNS, results_to_dataframe
 from journal_metric_tool.results import compute_result_summary, split_result_columns
@@ -280,6 +285,14 @@ class CoreTests(unittest.TestCase):
             public_path = data_dir / "public_journal_rankings.csv"
             public_path.write_text("journal,issn_l,jcr_quartile\nTest Journal,1234-5678,Q1\n", encoding="utf-8")
             self.assertEqual(discover_private_metric_path(temp_dir), public_path)
+
+    def test_discover_metric_urls_from_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            data_dir = Path(temp_dir) / "data"
+            data_dir.mkdir()
+            url_file = data_dir / "journal_rankings_url.txt"
+            url_file.write_text("# comment\nhttps://example.com/rankings.csv\n", encoding="utf-8")
+            self.assertEqual(discover_metric_urls(temp_dir), ["https://example.com/rankings.csv"])
 
     def test_i18n_keys_are_complete(self):
         english_keys = set(TRANSLATIONS["en"].keys())

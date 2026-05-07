@@ -63,10 +63,29 @@ def discover_private_metric_path(base_dir: str = ".") -> Optional[Path]:
     return None
 
 
+def discover_metric_urls(base_dir: str = ".") -> list:
+    urls = []
+    env_url = os.getenv("JOURNAL_RANKINGS_URL", "").strip()
+    if env_url:
+        urls.append(env_url)
+
+    data_dir = Path(base_dir) / "data"
+    for filename in ["journal_rankings_url.txt", "public_journal_rankings_url.txt"]:
+        path = data_dir / filename
+        if path.exists() and path.is_file():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                clean = line.strip()
+                if clean and not clean.startswith("#"):
+                    urls.append(clean)
+    return urls
+
+
 def load_private_metrics(base_dir: str = ".") -> Tuple[pd.DataFrame, str]:
-    url = os.getenv("JOURNAL_RANKINGS_URL", "").strip()
-    if url:
-        return read_metric_url(url), url
+    for url in discover_metric_urls(base_dir):
+        try:
+            return read_metric_url(url), url
+        except Exception:
+            continue
     path = discover_private_metric_path(base_dir)
     if not path:
         return pd.DataFrame(), ""

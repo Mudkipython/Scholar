@@ -67,8 +67,8 @@ TRANSLATIONS = {
         "metric_upload_empty": "No local ranking file loaded. Results will still include OpenAlex source metrics.",
         "private_metric_missing": "No private built-in ranking table was found.",
         "private_metric_missing_help": (
-            "Add data/journal_rankings.csv/xlsx or data/public_journal_rankings.csv/xlsx to the deployment, "
-            "or set JOURNAL_RANKINGS_URL / JOURNAL_RANKINGS_PATH."
+            "Add data/journal_rankings.csv/xlsx, or put a CSV URL in data/journal_rankings_url.txt. "
+            "You can also set JOURNAL_RANKINGS_URL / JOURNAL_RANKINGS_PATH."
         ),
         "private_metric_loaded": "Using private built-in ranking table: {source}",
         "uploaded_metric_active": "Using the uploaded ranking table for this session. It overrides the built-in reference table.",
@@ -167,7 +167,7 @@ TRANSLATIONS = {
         "download_template": "下载上传模板",
         "metric_upload_empty": "尚未加载本地分区表。结果仍会包含 OpenAlex 来源指标。",
         "private_metric_missing": "没有发现私有内置分区表。",
-        "private_metric_missing_help": "请把表放到部署目录的 data/journal_rankings.csv/xlsx 或 data/public_journal_rankings.csv/xlsx，也可以设置 JOURNAL_RANKINGS_URL / JOURNAL_RANKINGS_PATH。",
+        "private_metric_missing_help": "请把表放到 data/journal_rankings.csv/xlsx，或把 CSV 地址写入 data/journal_rankings_url.txt。也可以设置 JOURNAL_RANKINGS_URL / JOURNAL_RANKINGS_PATH。",
         "private_metric_loaded": "正在使用私有内置分区表：{source}",
         "uploaded_metric_active": "正在使用本次上传的分区表。它会覆盖内置参考表。",
         "uploaded_rows": "上传行数",

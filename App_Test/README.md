@@ -38,6 +38,18 @@ The app also supports these fallback filenames:
 
 You can also set `JOURNAL_RANKINGS_URL` to a CSV URL or `JOURNAL_RANKINGS_PATH` to an absolute or relative file path. User uploads override the built-in table for that session. The `journal_rankings.*` and `private_journal_rankings.*` filenames are ignored by Git; if this is a private repository and you intentionally want the table deployed with the app, either force-add the file or use `public_journal_rankings.*`.
 
+For no-upload online loading, create:
+
+```text
+data/journal_rankings_url.txt
+```
+
+Put one CSV URL per line. The app will try each URL and use the first reachable CSV:
+
+```text
+https://your-lab-domain.example/journal_rankings.csv
+```
+
 On Streamlit Community Cloud, a gitignored file will not be deployed. For private lab deployment without secrets or uploads, use one of these options:
 
 1. Deploy from a private repository and commit the reference table as `data/public_journal_rankings.csv`.
