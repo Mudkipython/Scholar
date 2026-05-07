@@ -1,8 +1,10 @@
 import os
+from io import StringIO
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import pandas as pd
+import requests
 
 
 LOCAL_METRIC_COLUMNS = [
@@ -31,6 +33,8 @@ def read_local_metrics(uploaded_file) -> pd.DataFrame:
 
 def read_metric_table(path_or_file) -> pd.DataFrame:
     name = str(getattr(path_or_file, "name", path_or_file)).lower()
+    if name.startswith("http://") or name.startswith("https://"):
+        return pd.read_csv(name)
     if name.endswith((".xlsx", ".xls")):
         return pd.read_excel(path_or_file)
     return pd.read_csv(path_or_file)
@@ -42,6 +46,12 @@ def discover_private_metric_path(base_dir: str = ".") -> Optional[Path]:
     data_dir = Path(base_dir) / "data"
     candidates.extend(
         [
+            data_dir / "journal_rankings.csv",
+            data_dir / "journal_rankings.xlsx",
+            data_dir / "journal_rankings.xls",
+            data_dir / "public_journal_rankings.csv",
+            data_dir / "public_journal_rankings.xlsx",
+            data_dir / "public_journal_rankings.xls",
             data_dir / "private_journal_rankings.csv",
             data_dir / "private_journal_rankings.xlsx",
             data_dir / "private_journal_rankings.xls",
@@ -54,10 +64,19 @@ def discover_private_metric_path(base_dir: str = ".") -> Optional[Path]:
 
 
 def load_private_metrics(base_dir: str = ".") -> Tuple[pd.DataFrame, str]:
+    url = os.getenv("JOURNAL_RANKINGS_URL", "").strip()
+    if url:
+        return read_metric_url(url), url
     path = discover_private_metric_path(base_dir)
     if not path:
         return pd.DataFrame(), ""
     return read_metric_table(path), str(path)
+
+
+def read_metric_url(url: str) -> pd.DataFrame:
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    return pd.read_csv(StringIO(response.text))
 
 
 def analyze_metric_table(metrics: Optional[pd.DataFrame]) -> Dict[str, object]:

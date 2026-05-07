@@ -236,7 +236,38 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(summary["low_confidence_count"], 1)
         split = split_result_columns(df)
         self.assertIn("title", split["primary"].columns)
+        self.assertIn("jcr_quartile", split["primary"].columns)
         self.assertIn("openalex_id", split["technical"].columns)
+
+    def test_empty_local_metric_columns_are_hidden_from_primary_view(self):
+        df = results_to_dataframe(
+            [
+                {
+                    "title": "No local metrics paper",
+                    "year": 2024,
+                    "journal": "No Local Metrics Journal",
+                    "doi": "",
+                    "citations": 1,
+                    "metric_value": 1.2,
+                    "metric_source": "OpenAlex 2-year mean citedness (not official JIF)",
+                    "h_index": 10,
+                    "i10_index": 20,
+                    "jcr_quartile": "",
+                    "cas_zone": "",
+                    "cas_subject": "",
+                    "jcr_category": "",
+                    "local_metric_source": "",
+                    "match_confidence": 0.9,
+                    "source_type": "journal",
+                    "issn_l": "1111-2222",
+                    "openalex_id": "https://openalex.org/W999",
+                    "notes": "",
+                }
+            ]
+        )
+        split = split_result_columns(df)
+        self.assertNotIn("jcr_quartile", split["primary"].columns)
+        self.assertNotIn("cas_zone", split["primary"].columns)
 
     def test_error_classification(self):
         self.assertEqual(classify_error(requests.Timeout("slow")), "timeout")
@@ -246,9 +277,9 @@ class CoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             data_dir = Path(temp_dir) / "data"
             data_dir.mkdir()
-            private_path = data_dir / "private_journal_rankings.csv"
-            private_path.write_text("journal,issn_l,jcr_quartile\nTest Journal,1234-5678,Q1\n", encoding="utf-8")
-            self.assertEqual(discover_private_metric_path(temp_dir), private_path)
+            public_path = data_dir / "public_journal_rankings.csv"
+            public_path.write_text("journal,issn_l,jcr_quartile\nTest Journal,1234-5678,Q1\n", encoding="utf-8")
+            self.assertEqual(discover_private_metric_path(temp_dir), public_path)
 
     def test_i18n_keys_are_complete(self):
         english_keys = set(TRANSLATIONS["en"].keys())

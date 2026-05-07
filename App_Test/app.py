@@ -308,6 +308,8 @@ def render_results(t, df: pd.DataFrame, base_results: pd.DataFrame, local_metric
     render_summary_metrics(t, df)
     if local_metrics is not None and not local_metrics.empty:
         render_local_match_stats(t, base_results, local_metrics)
+    else:
+        st.warning(t("no_local_metric_source_in_results"), icon=":material/database_off:")
     render_result_table(t, df)
     render_exports(t, df)
 

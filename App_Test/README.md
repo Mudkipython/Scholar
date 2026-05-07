@@ -21,18 +21,42 @@ By default this project uses OpenAlex `summary_stats.2yr_mean_citedness` for jou
 
 You can optionally upload a local JCR/CAS ranking table in the sidebar. The app will merge extra columns such as JCR Q1-Q4 and CAS zones by ISSN-L/ISSN first, then by journal name.
 
-If no file is uploaded, the app can use a private built-in ranking table. Add one of these files before deployment:
+If no file is uploaded, the app uses a built-in reference table when present. For private lab use, put your table here before deployment:
 
+- `data/journal_rankings.csv`
+- `data/journal_rankings.xlsx`
+- `data/journal_rankings.xls`
+
+The app also supports these fallback filenames:
+
+- `data/public_journal_rankings.csv`
+- `data/public_journal_rankings.xlsx`
+- `data/public_journal_rankings.xls`
 - `data/private_journal_rankings.csv`
 - `data/private_journal_rankings.xlsx`
 - `data/private_journal_rankings.xls`
 
-You can also set `JOURNAL_RANKINGS_PATH` to an absolute or relative file path. User uploads override the private built-in table for that session. The supported private filenames are ignored by Git so licensed data is not accidentally committed.
+You can also set `JOURNAL_RANKINGS_URL` to a CSV URL or `JOURNAL_RANKINGS_PATH` to an absolute or relative file path. User uploads override the built-in table for that session. The `journal_rankings.*` and `private_journal_rankings.*` filenames are ignored by Git; if this is a private repository and you intentionally want the table deployed with the app, either force-add the file or use `public_journal_rankings.*`.
 
-On Streamlit Community Cloud, a gitignored private file will not be deployed. Use one of these options:
+On Streamlit Community Cloud, a gitignored file will not be deployed. For private lab deployment without secrets or uploads, use one of these options:
 
-1. Deploy from a private repository and commit the licensed file intentionally after removing or overriding the ignore rule.
-2. Store a small/private CSV in Streamlit secrets:
+1. Deploy from a private repository and commit the reference table as `data/public_journal_rankings.csv`.
+2. Force-add your ignored built-in table intentionally:
+
+```bash
+git add -f data/journal_rankings.csv
+```
+
+The CSV should look like `data/journal_rankings_example.csv`:
+
+```csv
+journal,issn_l,jcr_quartile,cas_zone,cas_subject,jcr_category,local_metric_source
+Cancer Research,0008-5472,Q1,2区,医学,ONCOLOGY,Lab internal reference table
+```
+
+Other options:
+
+3. Store a small/private CSV in Streamlit secrets:
 
 ```toml
 journal_rankings_csv = """
@@ -41,10 +65,16 @@ Cancer Research,0008-5472,Q1,2区,医学,ONCOLOGY,Private JCR/CAS table
 """
 ```
 
-3. Store a private file path in Streamlit secrets if the file exists in the deployment environment:
+4. Store a private file path in Streamlit secrets if the file exists in the deployment environment:
 
 ```toml
 journal_rankings_path = "data/private_journal_rankings.csv"
+```
+
+5. Set an environment variable to a public CSV URL:
+
+```bash
+JOURNAL_RANKINGS_URL="https://example.com/journal_rankings.csv"
 ```
 
 Supported local ranking columns include:

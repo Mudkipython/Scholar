@@ -65,6 +65,7 @@ def compute_result_summary(df: pd.DataFrame) -> Dict[str, object]:
 
 def split_result_columns(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     primary = [column for column in PRIMARY_RESULT_COLUMNS if column in df.columns]
+    primary = _drop_empty_optional_columns(df, primary)
     technical = [column for column in TECHNICAL_RESULT_COLUMNS if column in df.columns]
     return {
         "primary": df[primary].copy(),
@@ -76,3 +77,13 @@ def _has_text(df: pd.DataFrame, column: str) -> pd.Series:
     if column not in df.columns:
         return pd.Series([False] * len(df), index=df.index)
     return df[column].fillna("").astype(str).str.strip().ne("")
+
+
+def _drop_empty_optional_columns(df: pd.DataFrame, columns: list) -> list:
+    optional = {"jcr_quartile", "cas_zone"}
+    kept = []
+    for column in columns:
+        if column in optional and not _has_text(df, column).any():
+            continue
+        kept.append(column)
+    return kept
