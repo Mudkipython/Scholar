@@ -28,6 +28,19 @@ TECHNICAL_RESULT_COLUMNS = [
     "openalex_id",
 ]
 
+REFERENCE_TEMPLATE_COLUMNS = [
+    "journal",
+    "issn_l",
+    "jcr_quartile",
+    "cas_zone",
+    "cas_subject",
+    "jcr_category",
+    "local_metric_source",
+    "source_type",
+    "openalex_metric_value",
+    "metric_source",
+]
+
 
 def compute_result_summary(df: pd.DataFrame) -> Dict[str, object]:
     if df is None or df.empty:
@@ -71,6 +84,40 @@ def split_result_columns(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
         "primary": df[primary].copy(),
         "technical": df[technical].copy(),
     }
+
+
+def build_missing_journal_template(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame(columns=REFERENCE_TEMPLATE_COLUMNS)
+
+    work = df.copy()
+    has_journal = _has_text(work, "journal")
+    has_local = (
+        _has_text(work, "jcr_quartile")
+        | _has_text(work, "cas_zone")
+        | _has_text(work, "cas_subject")
+        | _has_text(work, "jcr_category")
+    )
+    work = work[has_journal & ~has_local]
+    if work.empty:
+        return pd.DataFrame(columns=REFERENCE_TEMPLATE_COLUMNS)
+
+    rows = pd.DataFrame(
+        {
+            "journal": work.get("journal", ""),
+            "issn_l": work.get("issn_l", ""),
+            "jcr_quartile": "",
+            "cas_zone": "",
+            "cas_subject": "",
+            "jcr_category": "",
+            "local_metric_source": "Lab reference table",
+            "source_type": work.get("source_type", ""),
+            "openalex_metric_value": work.get("metric_value", ""),
+            "metric_source": work.get("metric_source", ""),
+        }
+    )
+    rows = rows.drop_duplicates(subset=["journal", "issn_l"], keep="first")
+    return rows[REFERENCE_TEMPLATE_COLUMNS].reset_index(drop=True)
 
 
 def _has_text(df: pd.DataFrame, column: str) -> pd.Series:

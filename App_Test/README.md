@@ -50,6 +50,8 @@ Put one CSV URL per line. The app will try each URL and use the first reachable 
 https://your-lab-domain.example/journal_rankings.csv
 ```
 
+If none of the above sources exists, the app falls back to `data/journal_rankings_example.csv` so the data-source panel can still demonstrate the expected schema. That demo file only contains sample rows; it will not fill JCR/CAS values for journals not listed there.
+
 On Streamlit Community Cloud, a gitignored file will not be deployed. For private lab deployment without secrets or uploads, use one of these options:
 
 1. Deploy from a private repository and commit the reference table as `data/public_journal_rankings.csv`.
@@ -64,6 +66,16 @@ The CSV should look like `data/journal_rankings_example.csv`:
 ```csv
 journal,issn_l,jcr_quartile,cas_zone,cas_subject,jcr_category,local_metric_source
 Cancer Research,0008-5472,Q1,2区,医学,ONCOLOGY,Lab internal reference table
+```
+
+To build `data/journal_rankings.csv` from local JCR/CAS Excel files:
+
+```bash
+python3 scripts/build_journal_rankings.py \
+  --jcr /path/to/2024JCR完整版.xlsx \
+  --cas2025 /path/to/中科院分区2025完整版.xlsx \
+  --cas2023 /path/to/附：中科院分区表2023完整版目录.xlsx \
+  --output data/journal_rankings.csv
 ```
 
 Other options:

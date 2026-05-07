@@ -17,12 +17,82 @@ LOCAL_METRIC_COLUMNS = [
 
 
 COLUMN_ALIASES = {
-    "journal": ["journal", "journal_name", "source", "source_title", "publication", "期刊", "期刊名称"],
-    "issn_l": ["issn_l", "issn-l", "issnl", "issn"],
-    "jcr_quartile": ["jcr_quartile", "jcr_q", "jcrq", "jcr", "quartile", "分区", "jcr分区"],
-    "cas_zone": ["cas_zone", "cas", "cas_partition", "cas_zone_basic", "中科院分区", "中科院大类分区"],
-    "cas_subject": ["cas_subject", "cas_category", "中科院大类", "大类学科", "学科"],
-    "jcr_category": ["jcr_category", "web_of_science_category", "wos_category", "jcr学科", "jcr类别"],
+    "journal": [
+        "journal",
+        "journal_name",
+        "journal title",
+        "journal_title",
+        "full journal title",
+        "source",
+        "source_title",
+        "publication",
+        "期刊",
+        "期刊名称",
+        "期刊名",
+        "刊名",
+        "来源期刊",
+    ],
+    "issn_l": ["issn_l", "issn-l", "issnl", "issn", "print issn", "eissn", "e-issn", "电子issn"],
+    "jcr_quartile": [
+        "jcr_quartile",
+        "jcr_q",
+        "jcrq",
+        "jcr",
+        "jif_quartile",
+        "jif quartile",
+        "jcr quartile",
+        "quartile",
+        "best quartile",
+        "quartile in category",
+        "分区",
+        "jcr分区",
+        "jif分区",
+        "jcr大类分区",
+        "jcr小类分区",
+    ],
+    "cas_zone": [
+        "cas_zone",
+        "cas",
+        "cas_partition",
+        "cas_zone_basic",
+        "zone",
+        "中科院分区",
+        "中科院大类分区",
+        "中科院小类分区",
+        "2025分区",
+        "2024分区",
+        "2023分区",
+        "大类分区",
+        "小类分区",
+        "基础版分区",
+        "升级版分区",
+        "基础版大类分区",
+        "升级版大类分区",
+        "分区号",
+    ],
+    "cas_subject": [
+        "cas_subject",
+        "cas_category",
+        "subject",
+        "category",
+        "中科院大类",
+        "中科院小类",
+        "大类学科",
+        "小类学科",
+        "学科",
+        "学科分类",
+    ],
+    "jcr_category": [
+        "jcr_category",
+        "web_of_science_category",
+        "wos_category",
+        "wos categories",
+        "category",
+        "subject category",
+        "jcr学科",
+        "jcr类别",
+        "jcr分类",
+    ],
     "local_metric_source": ["local_metric_source", "metric_source", "source_file", "来源"],
 }
 
@@ -36,8 +106,25 @@ def read_metric_table(path_or_file) -> pd.DataFrame:
     if name.startswith("http://") or name.startswith("https://"):
         return pd.read_csv(name)
     if name.endswith((".xlsx", ".xls")):
-        return pd.read_excel(path_or_file)
+        return read_excel_best_sheet(path_or_file)
     return pd.read_csv(path_or_file)
+
+
+def read_excel_best_sheet(path_or_file) -> pd.DataFrame:
+    sheets = pd.read_excel(path_or_file, sheet_name=None)
+    best = pd.DataFrame()
+    best_score = -1
+    for sheet in sheets.values():
+        if sheet.empty:
+            continue
+        analysis = analyze_metric_table(sheet)
+        score = len(analysis["recognized_columns"]) * 1000 + len(sheet)
+        if analysis["has_match_key"]:
+            score += 10000
+        if score > best_score:
+            best = sheet
+            best_score = score
+    return best
 
 
 def discover_private_metric_path(base_dir: str = ".") -> Optional[Path]:
@@ -55,6 +142,7 @@ def discover_private_metric_path(base_dir: str = ".") -> Optional[Path]:
             data_dir / "private_journal_rankings.csv",
             data_dir / "private_journal_rankings.xlsx",
             data_dir / "private_journal_rankings.xls",
+            data_dir / "journal_rankings_example.csv",
         ]
     )
     for candidate in candidates:

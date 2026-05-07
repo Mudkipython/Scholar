@@ -9,15 +9,18 @@ from journal_metric_tool.errors import classify_error
 from journal_metric_tool.export import dataframe_to_csv_bytes, dataframe_to_xlsx_bytes
 from journal_metric_tool.i18n import TRANSLATIONS, translate
 from journal_metric_tool.local_metrics import (
+    analyze_metric_table,
     compute_metric_match_stats,
     discover_metric_urls,
     discover_private_metric_path,
     enrich_with_local_metrics,
+    read_excel_best_sheet,
 )
 from journal_metric_tool.openalex import work_to_match
 from journal_metric_tool.pipeline import RESULT_COLUMNS, results_to_dataframe
-from journal_metric_tool.results import compute_result_summary, split_result_columns
+from journal_metric_tool.results import build_missing_journal_template, compute_result_summary, split_result_columns
 from journal_metric_tool.scholar import parse_scholar_author_id, parse_scholar_profile_html
+from scripts.build_journal_rankings import build_reference_table
 
 
 SCHOLAR_HTML = """
@@ -274,6 +277,58 @@ class CoreTests(unittest.TestCase):
         self.assertNotIn("jcr_quartile", split["primary"].columns)
         self.assertNotIn("cas_zone", split["primary"].columns)
 
+    def test_missing_journal_template_contains_uncovered_journals(self):
+        df = results_to_dataframe(
+            [
+                {
+                    "title": "Needs ranking",
+                    "year": 2024,
+                    "journal": "Needs Ranking Journal",
+                    "doi": "",
+                    "citations": 1,
+                    "metric_value": 1.2,
+                    "metric_source": "OpenAlex 2-year mean citedness (not official JIF)",
+                    "h_index": 10,
+                    "i10_index": 20,
+                    "jcr_quartile": "",
+                    "cas_zone": "",
+                    "cas_subject": "",
+                    "jcr_category": "",
+                    "local_metric_source": "",
+                    "match_confidence": 0.9,
+                    "source_type": "journal",
+                    "issn_l": "1111-2222",
+                    "openalex_id": "https://openalex.org/W999",
+                    "notes": "",
+                },
+                {
+                    "title": "Already ranked",
+                    "year": 2024,
+                    "journal": "Already Ranked Journal",
+                    "doi": "",
+                    "citations": 1,
+                    "metric_value": 1.2,
+                    "metric_source": "OpenAlex 2-year mean citedness (not official JIF)",
+                    "h_index": 10,
+                    "i10_index": 20,
+                    "jcr_quartile": "Q1",
+                    "cas_zone": "2区",
+                    "cas_subject": "",
+                    "jcr_category": "",
+                    "local_metric_source": "Lab reference table",
+                    "match_confidence": 0.9,
+                    "source_type": "journal",
+                    "issn_l": "3333-4444",
+                    "openalex_id": "https://openalex.org/W998",
+                    "notes": "",
+                },
+            ]
+        )
+        template = build_missing_journal_template(df)
+        self.assertEqual(len(template), 1)
+        self.assertEqual(template.loc[0, "journal"], "Needs Ranking Journal")
+        self.assertEqual(template.loc[0, "issn_l"], "1111-2222")
+
     def test_error_classification(self):
         self.assertEqual(classify_error(requests.Timeout("slow")), "timeout")
         self.assertEqual(classify_error(requests.ConnectionError("offline")), "network")
@@ -293,6 +348,86 @@ class CoreTests(unittest.TestCase):
             url_file = data_dir / "journal_rankings_url.txt"
             url_file.write_text("# comment\nhttps://example.com/rankings.csv\n", encoding="utf-8")
             self.assertEqual(discover_metric_urls(temp_dir), ["https://example.com/rankings.csv"])
+
+    def test_example_ranking_file_is_fallback_source(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            data_dir = Path(temp_dir) / "data"
+            data_dir.mkdir()
+            example_path = data_dir / "journal_rankings_example.csv"
+            example_path.write_text("journal,issn_l,jcr_quartile\nTest Journal,1234-5678,Q1\n", encoding="utf-8")
+            self.assertEqual(discover_private_metric_path(temp_dir), example_path)
+
+    def test_common_jcr_cas_column_aliases_are_recognized(self):
+        metrics = pd.DataFrame(
+            [
+                {
+                    "Full Journal Title": "Alias Journal",
+                    "Print ISSN": "1111-2222",
+                    "JIF Quartile": "Q1",
+                    "升级版大类分区": "2区",
+                    "WOS Categories": "GEOGRAPHY",
+                }
+            ]
+        )
+        analysis = analyze_metric_table(metrics)
+        self.assertTrue(analysis["has_match_key"])
+        self.assertIn("journal", analysis["recognized_columns"])
+        self.assertIn("issn_l", analysis["recognized_columns"])
+        self.assertIn("jcr_quartile", analysis["recognized_columns"])
+        self.assertIn("cas_zone", analysis["recognized_columns"])
+
+    def test_excel_reader_chooses_sheet_with_recognized_columns(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "rankings.xlsx"
+            with pd.ExcelWriter(path, engine="openpyxl") as writer:
+                pd.DataFrame({"notes": ["cover page"]}).to_excel(writer, index=False, sheet_name="cover")
+                pd.DataFrame(
+                    {
+                        "期刊名称": ["Sheet Journal"],
+                        "ISSN": ["1234-5678"],
+                        "JCR分区": ["Q1"],
+                    }
+                ).to_excel(writer, index=False, sheet_name="data")
+            best = read_excel_best_sheet(path)
+            self.assertIn("期刊名称", best.columns)
+
+    def test_reference_builder_merges_jcr_and_cas_workbooks(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            jcr_path = root / "jcr.xlsx"
+            cas2025_path = root / "cas2025.xlsx"
+            cas2023_path = root / "cas2023.xlsx"
+            with pd.ExcelWriter(jcr_path, engine="openpyxl") as writer:
+                pd.DataFrame(
+                    {
+                        "期刊名": ["Test Journal"],
+                        "ISSN": ["1234-5678"],
+                        "eISSN": ["8765-4321"],
+                        "Category": ["GEOGRAPHY(SCIE)"],
+                        "2024JIF": [5.5],
+                        "Quartile": ["Q1"],
+                        "JIF rank": ["1/100"],
+                        "2023分区": ["Q1"],
+                    }
+                ).to_excel(writer, index=False, sheet_name="2024JCR")
+                pd.DataFrame({"期刊名称": ["Test Journal"], "2025分区": [2], "Top": ["否"], "Open Access": ["否"]}).to_excel(
+                    writer, index=False, sheet_name="2025中国科学院分区表"
+                )
+            pd.DataFrame({"Journal": ["Test Journal"], "分区": [2], "Top": ["否"], "Open Access": ["否"]}).to_excel(
+                cas2025_path, index=False, sheet_name="Sheet1"
+            )
+            with pd.ExcelWriter(cas2023_path, engine="openpyxl") as writer:
+                pd.DataFrame({"刊名": ["Test Journal"], "ISSN": ["1234-5678"], "分区": ["1区"], "学科": ["地球科学"]}).to_excel(
+                    writer, index=False, sheet_name="大类学科"
+                )
+                pd.DataFrame({"刊名": ["Test Journal"], "ISSN": ["1234-5678"], "分区": ["1区"], "学科": ["REMOTE SENSING"]}).to_excel(
+                    writer, index=False, sheet_name="小类学科"
+                )
+            built = build_reference_table(jcr_path, cas2025_path, cas2023_path)
+            self.assertEqual(len(built), 1)
+            self.assertEqual(built.loc[0, "jcr_quartile"], "Q1")
+            self.assertEqual(built.loc[0, "cas_zone"], "2区")
+            self.assertEqual(built.loc[0, "cas_subject"], "地球科学")
 
     def test_i18n_keys_are_complete(self):
         english_keys = set(TRANSLATIONS["en"].keys())

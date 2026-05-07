@@ -14,6 +14,7 @@ from journal_metric_tool.local_metrics import (
     enrich_with_local_metrics,
     load_private_metrics,
     read_local_metrics,
+    read_metric_table,
 )
 from journal_metric_tool.pipeline import (
     build_results_from_openalex_author,
@@ -21,7 +22,7 @@ from journal_metric_tool.pipeline import (
     results_to_dataframe,
     search_author_candidates,
 )
-from journal_metric_tool.results import compute_result_summary, split_result_columns
+from journal_metric_tool.results import build_missing_journal_template, compute_result_summary, split_result_columns
 from journal_metric_tool.scholar import parse_scholar_author_id
 
 
@@ -181,10 +182,7 @@ def load_private_metrics_from_secrets():
 
 
 def load_private_metrics_from_path(path: str) -> pd.DataFrame:
-    suffix = Path(path).suffix.lower()
-    if suffix in [".xlsx", ".xls"]:
-        return pd.read_excel(path)
-    return pd.read_csv(path)
+    return read_metric_table(path)
 
 
 def render_metric_table_analysis(t, metrics: pd.DataFrame) -> None:
@@ -197,7 +195,7 @@ def render_metric_table_analysis(t, metrics: pd.DataFrame) -> None:
         st.warning(t("metric_missing_key"), icon=":material/warning:")
     if analysis["unrecognized_columns"]:
         st.caption(t("unrecognized_columns", columns=", ".join(map(str, analysis["unrecognized_columns"]))))
-    st.dataframe(metrics.head(5), hide_index=True, use_container_width=True)
+    st.dataframe(metrics.head(5), hide_index=True, width="stretch")
 
 
 def render_query_panel(t, mailto: str, max_papers: int) -> pd.DataFrame:
@@ -283,7 +281,7 @@ def render_author_query(t, mailto: str, max_papers: int) -> pd.DataFrame:
     st.dataframe(
         pd.DataFrame([candidate.__dict__ for candidate in candidates]),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config={
             "id": st.column_config.LinkColumn("OpenAlex ID"),
             "display_name": st.column_config.TextColumn(t("author_name"), pinned=True),
@@ -311,6 +309,7 @@ def render_results(t, df: pd.DataFrame, base_results: pd.DataFrame, local_metric
     else:
         st.warning(t("no_local_metric_source_in_results"), icon=":material/database_off:")
     render_result_table(t, df)
+    render_missing_journal_template(t, df)
     render_exports(t, df)
 
 
@@ -338,6 +337,8 @@ def render_local_match_stats(t, base_results: pd.DataFrame, local_metrics: pd.Da
             unmatched=stats["unmatched"],
         )
     )
+    if stats["match_rate"] == 0 and len(base_results) > 0:
+        st.warning(t("local_metric_zero_match"), icon=":material/warning:")
 
 
 def render_result_table(t, df: pd.DataFrame) -> None:
@@ -345,7 +346,7 @@ def render_result_table(t, df: pd.DataFrame) -> None:
     st.dataframe(
         split["primary"],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config={
             "title": st.column_config.TextColumn(t("col_title"), pinned=True, width="large"),
             "year": st.column_config.NumberColumn(t("col_year"), format="%d"),
@@ -360,10 +361,28 @@ def render_result_table(t, df: pd.DataFrame) -> None:
         },
     )
     with st.expander(t("technical_columns"), icon=":material/tune:"):
-        st.dataframe(split["technical"], hide_index=True, use_container_width=True)
+        st.dataframe(split["technical"], hide_index=True, width="stretch")
     if compute_result_summary(df)["low_confidence_count"]:
         st.warning(t("low_confidence_warning"), icon=":material/warning:")
     st.caption(t("result_source_caption"))
+
+
+def render_missing_journal_template(t, df: pd.DataFrame) -> None:
+    template = build_missing_journal_template(df)
+    if template.empty:
+        return
+    with st.container(border=True):
+        st.markdown(f"**:material/edit_document: {t('missing_template_title')}**")
+        st.caption(t("missing_template_caption", count=len(template)))
+        st.dataframe(template, hide_index=True, width="stretch")
+        st.download_button(
+            t("download_missing_template"),
+            data=dataframe_to_csv_bytes(template),
+            file_name="missing_journal_rankings_template.csv",
+            mime="text/csv",
+            icon=":material/download:",
+            width="stretch",
+        )
 
 
 def render_exports(t, df: pd.DataFrame) -> None:
@@ -378,7 +397,7 @@ def render_exports(t, df: pd.DataFrame) -> None:
             file_name="journal_metrics.csv",
             mime="text/csv",
             icon=":material/download:",
-            use_container_width=True,
+            width="stretch",
         )
     with col_xlsx:
         st.download_button(
@@ -387,7 +406,7 @@ def render_exports(t, df: pd.DataFrame) -> None:
             file_name="journal_metrics.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             icon=":material/download:",
-            use_container_width=True,
+            width="stretch",
         )
 
 
