@@ -1,4 +1,5 @@
 import os
+from io import StringIO
 from pathlib import Path
 
 import pandas as pd
@@ -131,9 +132,10 @@ def render_metric_upload(t) -> pd.DataFrame:
 
         if not uploaded:
             with preview_col:
-                private_metrics, private_source = load_cached_private_metrics(str(APP_DIR))
+                private_metrics, private_source = load_private_metrics_for_app(str(APP_DIR))
                 if private_metrics.empty:
-                    st.info(t("metric_upload_empty"), icon=":material/upload_file:")
+                    st.warning(t("private_metric_missing"), icon=":material/database_off:")
+                    st.caption(t("private_metric_missing_help"))
                     return pd.DataFrame()
                 st.success(t("private_metric_loaded", source=private_source), icon=":material/database:")
                 render_metric_table_analysis(t, private_metrics)
@@ -155,6 +157,34 @@ def render_metric_upload(t) -> pd.DataFrame:
 @st.cache_data(ttl="10m", max_entries=4, show_spinner=False)
 def load_cached_private_metrics(base_dir: str):
     return load_private_metrics(base_dir)
+
+
+def load_private_metrics_for_app(base_dir: str):
+    metrics, source = load_private_metrics_from_secrets()
+    if not metrics.empty:
+        return metrics, source
+    return load_cached_private_metrics(base_dir)
+
+
+def load_private_metrics_from_secrets():
+    try:
+        csv_text = st.secrets.get("journal_rankings_csv", "")
+        secret_path = st.secrets.get("journal_rankings_path", "")
+    except Exception:
+        return pd.DataFrame(), ""
+
+    if csv_text:
+        return pd.read_csv(StringIO(str(csv_text))), "Streamlit secrets: journal_rankings_csv"
+    if secret_path:
+        return load_private_metrics_from_path(str(secret_path)), f"Streamlit secrets: {secret_path}"
+    return pd.DataFrame(), ""
+
+
+def load_private_metrics_from_path(path: str) -> pd.DataFrame:
+    suffix = Path(path).suffix.lower()
+    if suffix in [".xlsx", ".xls"]:
+        return pd.read_excel(path)
+    return pd.read_csv(path)
 
 
 def render_metric_table_analysis(t, metrics: pd.DataFrame) -> None:

@@ -65,6 +65,11 @@ TRANSLATIONS = {
         "metric_upload_caption": "Upload JCR/CAS data to add quartiles and zones after the paper list is matched.",
         "download_template": "Download upload template",
         "metric_upload_empty": "No local ranking file loaded. Results will still include OpenAlex source metrics.",
+        "private_metric_missing": "No private built-in ranking table was found.",
+        "private_metric_missing_help": (
+            "Add data/private_journal_rankings.csv/xlsx, set JOURNAL_RANKINGS_PATH, "
+            "or add journal_rankings_csv / journal_rankings_path in Streamlit secrets."
+        ),
         "private_metric_loaded": "Using private built-in ranking table: {source}",
         "uploaded_metric_active": "Using the uploaded ranking table for this session. It overrides any private built-in table.",
         "uploaded_rows": "Uploaded rows",
@@ -160,6 +165,8 @@ TRANSLATIONS = {
         "metric_upload_caption": "上传 JCR/中科院数据后，系统会在论文匹配完成后补充分区和学科信息。",
         "download_template": "下载上传模板",
         "metric_upload_empty": "尚未加载本地分区表。结果仍会包含 OpenAlex 来源指标。",
+        "private_metric_missing": "没有发现私有内置分区表。",
+        "private_metric_missing_help": "请添加 data/private_journal_rankings.csv/xlsx，设置 JOURNAL_RANKINGS_PATH，或在 Streamlit secrets 中添加 journal_rankings_csv / journal_rankings_path。",
         "private_metric_loaded": "正在使用私有内置分区表：{source}",
         "uploaded_metric_active": "正在使用本次上传的分区表。它会覆盖私有内置表。",
         "uploaded_rows": "上传行数",

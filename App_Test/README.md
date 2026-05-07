@@ -29,6 +29,24 @@ If no file is uploaded, the app can use a private built-in ranking table. Add on
 
 You can also set `JOURNAL_RANKINGS_PATH` to an absolute or relative file path. User uploads override the private built-in table for that session. The supported private filenames are ignored by Git so licensed data is not accidentally committed.
 
+On Streamlit Community Cloud, a gitignored private file will not be deployed. Use one of these options:
+
+1. Deploy from a private repository and commit the licensed file intentionally after removing or overriding the ignore rule.
+2. Store a small/private CSV in Streamlit secrets:
+
+```toml
+journal_rankings_csv = """
+journal,issn_l,jcr_quartile,cas_zone,cas_subject,jcr_category,local_metric_source
+Cancer Research,0008-5472,Q1,2区,医学,ONCOLOGY,Private JCR/CAS table
+"""
+```
+
+3. Store a private file path in Streamlit secrets if the file exists in the deployment environment:
+
+```toml
+journal_rankings_path = "data/private_journal_rankings.csv"
+```
+
 Supported local ranking columns include:
 
 - `journal`, `journal_name`, `期刊名称`
