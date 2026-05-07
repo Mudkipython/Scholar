@@ -1,4 +1,6 @@
-from typing import Dict, Optional
+import os
+from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
@@ -24,10 +26,38 @@ COLUMN_ALIASES = {
 
 
 def read_local_metrics(uploaded_file) -> pd.DataFrame:
-    name = getattr(uploaded_file, "name", "").lower()
+    return read_metric_table(uploaded_file)
+
+
+def read_metric_table(path_or_file) -> pd.DataFrame:
+    name = str(getattr(path_or_file, "name", path_or_file)).lower()
     if name.endswith((".xlsx", ".xls")):
-        return pd.read_excel(uploaded_file)
-    return pd.read_csv(uploaded_file)
+        return pd.read_excel(path_or_file)
+    return pd.read_csv(path_or_file)
+
+
+def discover_private_metric_path(base_dir: str = ".") -> Optional[Path]:
+    env_path = os.getenv("JOURNAL_RANKINGS_PATH", "").strip()
+    candidates = [Path(env_path)] if env_path else []
+    data_dir = Path(base_dir) / "data"
+    candidates.extend(
+        [
+            data_dir / "private_journal_rankings.csv",
+            data_dir / "private_journal_rankings.xlsx",
+            data_dir / "private_journal_rankings.xls",
+        ]
+    )
+    for candidate in candidates:
+        if candidate and candidate.exists() and candidate.is_file():
+            return candidate
+    return None
+
+
+def load_private_metrics(base_dir: str = ".") -> Tuple[pd.DataFrame, str]:
+    path = discover_private_metric_path(base_dir)
+    if not path:
+        return pd.DataFrame(), ""
+    return read_metric_table(path), str(path)
 
 
 def analyze_metric_table(metrics: Optional[pd.DataFrame]) -> Dict[str, object]:

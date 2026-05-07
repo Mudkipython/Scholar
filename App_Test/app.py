@@ -11,6 +11,7 @@ from journal_metric_tool.local_metrics import (
     analyze_metric_table,
     compute_metric_match_stats,
     enrich_with_local_metrics,
+    load_private_metrics,
     read_local_metrics,
 )
 from journal_metric_tool.pipeline import (
@@ -24,6 +25,7 @@ from journal_metric_tool.scholar import parse_scholar_author_id
 
 
 SAMPLE_TEMPLATE_PATH = Path(__file__).with_name("sample_metric_template.csv")
+APP_DIR = Path(__file__).resolve().parent
 
 
 @st.cache_data(ttl="1h", max_entries=32, show_spinner=False)
@@ -129,8 +131,13 @@ def render_metric_upload(t) -> pd.DataFrame:
 
         if not uploaded:
             with preview_col:
-                st.info(t("metric_upload_empty"), icon=":material/upload_file:")
-            return pd.DataFrame()
+                private_metrics, private_source = load_cached_private_metrics(str(APP_DIR))
+                if private_metrics.empty:
+                    st.info(t("metric_upload_empty"), icon=":material/upload_file:")
+                    return pd.DataFrame()
+                st.success(t("private_metric_loaded", source=private_source), icon=":material/database:")
+                render_metric_table_analysis(t, private_metrics)
+                return private_metrics
 
         try:
             metrics = read_local_metrics(uploaded)
@@ -139,18 +146,28 @@ def render_metric_upload(t) -> pd.DataFrame:
                 st.error(t("read_metric_error", error=exc), icon=":material/error:")
             return pd.DataFrame()
 
-        analysis = analyze_metric_table(metrics)
         with preview_col:
-            metric_cols = st.columns(3)
-            metric_cols[0].metric(t("uploaded_rows"), analysis["row_count"])
-            metric_cols[1].metric(t("recognized_columns"), len(analysis["recognized_columns"]))
-            metric_cols[2].metric(t("match_key_status"), t("available") if analysis["has_match_key"] else t("missing"))
-            if not analysis["has_match_key"]:
-                st.warning(t("metric_missing_key"), icon=":material/warning:")
-            if analysis["unrecognized_columns"]:
-                st.caption(t("unrecognized_columns", columns=", ".join(map(str, analysis["unrecognized_columns"]))))
-            st.dataframe(metrics.head(5), hide_index=True, use_container_width=True)
+            st.success(t("uploaded_metric_active"), icon=":material/upload_file:")
+            render_metric_table_analysis(t, metrics)
         return metrics
+
+
+@st.cache_data(ttl="10m", max_entries=4, show_spinner=False)
+def load_cached_private_metrics(base_dir: str):
+    return load_private_metrics(base_dir)
+
+
+def render_metric_table_analysis(t, metrics: pd.DataFrame) -> None:
+    analysis = analyze_metric_table(metrics)
+    metric_cols = st.columns(3)
+    metric_cols[0].metric(t("uploaded_rows"), analysis["row_count"])
+    metric_cols[1].metric(t("recognized_columns"), len(analysis["recognized_columns"]))
+    metric_cols[2].metric(t("match_key_status"), t("available") if analysis["has_match_key"] else t("missing"))
+    if not analysis["has_match_key"]:
+        st.warning(t("metric_missing_key"), icon=":material/warning:")
+    if analysis["unrecognized_columns"]:
+        st.caption(t("unrecognized_columns", columns=", ".join(map(str, analysis["unrecognized_columns"]))))
+    st.dataframe(metrics.head(5), hide_index=True, use_container_width=True)
 
 
 def render_query_panel(t, mailto: str, max_papers: int) -> pd.DataFrame:

@@ -21,6 +21,14 @@ By default this project uses OpenAlex `summary_stats.2yr_mean_citedness` for jou
 
 You can optionally upload a local JCR/CAS ranking table in the sidebar. The app will merge extra columns such as JCR Q1-Q4 and CAS zones by ISSN-L/ISSN first, then by journal name.
 
+If no file is uploaded, the app can use a private built-in ranking table. Add one of these files before deployment:
+
+- `data/private_journal_rankings.csv`
+- `data/private_journal_rankings.xlsx`
+- `data/private_journal_rankings.xls`
+
+You can also set `JOURNAL_RANKINGS_PATH` to an absolute or relative file path. User uploads override the private built-in table for that session. The supported private filenames are ignored by Git so licensed data is not accidentally committed.
+
 Supported local ranking columns include:
 
 - `journal`, `journal_name`, `期刊名称`
@@ -44,7 +52,7 @@ Recommended runtime:
 - Python 3.10 or newer.
 - Streamlit 1.50 or newer.
 
-No API key is required for the default OpenAlex workflow. The optional `OPENALEX_MAILTO` value can be entered in the app sidebar after deployment. JCR/CAS ranking files are uploaded at runtime and are not stored by the app.
+No API key is required for the default OpenAlex workflow. The optional `OPENALEX_MAILTO` value can be entered in the app sidebar after deployment. JCR/CAS ranking files are either uploaded at runtime or loaded from your private deployment file; the app does not write uploads to disk.
 
 ## Local setup
 
@@ -74,7 +82,7 @@ Open `notebooks/scholar_journal_metrics_demo.ipynb` and run the cells. The noteb
 
 - Google Scholar does not provide official bulk access. This prototype does not bypass CAPTCHAs, use proxy pools, or reuse login sessions.
 - OpenAlex author-name search is the more stable no-key workflow.
-- Uploaded JCR/CAS files are processed in memory during the Streamlit session and are not written to disk by the app.
+- Uploaded JCR/CAS files are processed in memory during the Streamlit session and are not written to disk by the app. Private built-in ranking files are read from `data/` or `JOURNAL_RANKINGS_PATH`.
 - Low-confidence matches should be manually reviewed before reporting or publication use.
 - Future API extension points:
   - `SERPAPI_API_KEY` for Google Scholar profile/search APIs.
