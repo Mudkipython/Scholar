@@ -1,5 +1,7 @@
 # Scholar Journal Metrics
 
+Demo: https://schoolar.streamlit.app/
+
 Research-oriented Streamlit tool for matching a scholar's publications to journal-level metrics.
 
 The app supports two query workflows:
